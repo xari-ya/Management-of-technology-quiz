@@ -3571,6 +3571,16 @@ const INITIAL_DATA: Question[] = [
   },
 ];
 
+// Helper to shuffle an array (Fisher-Yates)
+const shuffleArray = <T>(array: T[]): T[] => {
+  const newArr = [...array];
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  }
+  return newArr;
+};
+
 export const getQuestions = (): Question[] => {
   // We use LocalStorage to persist data (similar to cookies but better for large JSON data)
   const stored = localStorage.getItem(DATA_KEY);
@@ -3655,8 +3665,12 @@ export const getQuestionsForPractice = (lesson: string): Question[] => {
   const questions = getQuestions().filter(q => q.lesson === lesson);
   const history = getHistory();
 
-  // Sort: Wrong answers first, then unattempted, then correct.
-  return questions.sort((a, b) => {
+  // We shuffle ALL relevant questions first to ensure randomness within status groups.
+  // Then we sort by priority: Wrong -> Unattempted -> Correct
+  // This satisfies the "Shuffle Questions" requirement while keeping "Intelligent Practice".
+  const shuffled = shuffleArray(questions);
+
+  return shuffled.sort((a, b) => {
     const statA = history[a.id];
     const statB = history[b.id];
 
@@ -3678,7 +3692,8 @@ export const getQuestionsForMasterQuiz = (): Question[] => {
   });
 
   // Shuffle and take 60
-  const shuffled = pool.sort(() => 0.5 - Math.random());
+  // Using our Fisher-Yates shuffle helper for better randomness
+  const shuffled = shuffleArray(pool);
   return shuffled.slice(0, 60);
 };
 
@@ -3688,12 +3703,15 @@ export const getQuestionsForReview = (lesson?: string): Question[] => {
 
   // Return only questions that have been attempted and are marked as incorrect
   // If lesson is provided, filter by lesson as well
-  return allQuestions.filter(q => {
+  const filtered = allQuestions.filter(q => {
     if (lesson && q.lesson !== lesson) return false;
     
     const attempt = history[q.id];
     return attempt && !attempt.correct;
   });
+
+  // Shuffle the results to avoid pattern memorization
+  return shuffleArray(filtered);
 };
 
 export const importQuestions = (newQuestions: Question[], replaceLesson?: string) => {

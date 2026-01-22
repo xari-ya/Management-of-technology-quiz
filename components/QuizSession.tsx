@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Question } from '../types';
 import { recordAttempt } from '../services/quizService';
 import { CheckCircle, XCircle, ArrowRight, AlertCircle } from 'lucide-react';
@@ -16,7 +16,29 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ questions, title, onEx
   const [score, setScore] = useState(0);
   const [showResults, setShowResults] = useState(false);
 
-  const currentQuestion = questions[currentIndex];
+  // Memoize the questions with shuffled options. 
+  // This runs once when 'questions' prop changes (session start).
+  const sessionQuestions = useMemo(() => {
+    return questions.map(q => {
+      // Create indices [0, 1, 2, 3]
+      const indices = q.options.map((_, i) => i);
+      
+      // Fisher-Yates shuffle the indices
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      
+      // Remap options and find the new index for the correct answer
+      return {
+        ...q,
+        options: indices.map(i => q.options[i]),
+        correctAnswerIndex: indices.indexOf(q.correctAnswerIndex)
+      };
+    });
+  }, [questions]);
+
+  const currentQuestion = sessionQuestions[currentIndex];
 
   useEffect(() => {
     if (questions.length === 0) {
@@ -39,7 +61,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ questions, title, onEx
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
+    if (currentIndex < sessionQuestions.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setSelectedOption(null);
       setIsAnswered(false);
@@ -73,11 +95,11 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ questions, title, onEx
       <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center animate-in fade-in duration-500">
          <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border border-gray-100">
           <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-3xl font-bold text-blue-600">{Math.round((score / questions.length) * 100)}%</span>
+            <span className="text-3xl font-bold text-blue-600">{Math.round((score / sessionQuestions.length) * 100)}%</span>
           </div>
           <h2 className="text-3xl font-bold text-gray-800 mb-2">Session Complete!</h2>
           <p className="text-gray-600 mb-8">
-            You answered <span className="font-semibold text-gray-900">{score}</span> out of <span className="font-semibold text-gray-900">{questions.length}</span> questions correctly.
+            You answered <span className="font-semibold text-gray-900">{score}</span> out of <span className="font-semibold text-gray-900">{sessionQuestions.length}</span> questions correctly.
           </p>
           <button
             onClick={onExit}
@@ -95,7 +117,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ questions, title, onEx
       <div className="mb-6 flex justify-between items-center">
         <div>
            <h2 className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-1">{title}</h2>
-           <p className="text-gray-500 text-sm">Question {currentIndex + 1} of {questions.length}</p>
+           <p className="text-gray-500 text-sm">Question {currentIndex + 1} of {sessionQuestions.length}</p>
         </div>
         <button onClick={onExit} className="text-gray-400 hover:text-gray-600 font-medium text-sm">
           Quit
@@ -160,7 +182,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ questions, title, onEx
                 onClick={handleNext}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-sm"
               >
-                {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
+                {currentIndex === sessionQuestions.length - 1 ? 'Finish Quiz' : 'Next Question'}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
